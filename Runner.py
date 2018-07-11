@@ -2,7 +2,13 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.decomposition import PCA
+from sklearn.decomposition import KernelPCA
+from sklearn.decomposition import LatentDirichletAllocation
 from sklearn.preprocessing import LabelEncoder
+from sklearn.manifold import MDS
+from mpl_toolkits.mplot3d import Axes3D
+
+np.random.seed(7)
 
 
 def is_residential(ms_zoning):
@@ -55,21 +61,71 @@ def encode_labels(df):
             df[column_name] = column.apply(lambda v: le.transform([v])[0])
 
 
-def main():
-    df = pd.read_csv(filepath_or_buffer="resources/train.csv").fillna(0)
+def show_kernel_pca(data, kernel):
+    pca = KernelPCA(n_components=3, kernel=kernel)
+    pca.fit(data)
+    new_data = pca.transform(data)
 
-    encode_labels(df)
+    # print(pca.explained_variance_ratio_)
+    # print(pca.singular_values_)
+    # print(pca.noise_variance_)
 
-    data = df.as_matrix()
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    ax.scatter(new_data[:, 0], new_data[:, 1], new_data[:, 2], marker='.')
+    plt.show()
 
+
+def show_pca(data):
     pca = PCA(n_components=2)
     pca.fit(data)
     new_data = pca.transform(data)
+
     print(pca.explained_variance_ratio_)
     print(pca.singular_values_)
+    print(pca.noise_variance_)
+
+    # n_comp = [i for i in range(len(pca.explained_variance_ratio_))]
+
+    # plt.scatter(n_comp, pca.explained_variance_ratio_, marker='.')
 
     plt.scatter(new_data[:, 0], new_data[:, 1], marker='.')
+    # fig = plt.figure()
+    # ax = fig.add_subplot(111, projection='3d')
+    # ax.scatter(new_data[:, 0], new_data[:, 1], new_data[:, 2], marker='.')
     plt.show()
+
+
+def show_mds(data):
+    mds = MDS(n_components=3)
+    new_data = mds.fit_transform(data)
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    ax.scatter(new_data[:, 0], new_data[:, 1], new_data[:, 2], marker='.')
+    plt.show()
+
+
+def show_lda(data):
+    lda = LatentDirichletAllocation(n_components=3)
+    new_data = lda.fit_transform(data)
+    # plt.scatter(new_data[:, 0], new_data[:, 1], marker='.')
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    ax.scatter(new_data[:, 0], new_data[:, 1], new_data[:, 2], marker='.')
+    plt.show()
+
+
+def main():
+    df = pd.read_csv(filepath_or_buffer="resources/train.csv").fillna(0)
+    encode_labels(df)
+    data = df.as_matrix()
+
+    show_pca(data)
+    # for kernel in ["linear", "poly", "rbf", "sigmoid", "cosine", "precomputed"]:
+    #     show_kernel_pca(data, kernel)
+    # show_lda(data)
+    # show_mds(data)
 
 
 if __name__ == "__main__":
