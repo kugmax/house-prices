@@ -1,3 +1,5 @@
+from math import sqrt
+
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
@@ -10,123 +12,64 @@ from mpl_toolkits.mplot3d import Axes3D
 from sklearn.feature_selection import RFE
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import minmax_scale
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, cross_val_score
 from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.preprocessing import StandardScaler
+import seaborn as sns
+
+
+from Tools import encode_labels
 
 seed = 7
 np.random.seed(seed)
 
+"""
+Steps:
+ understend witch feature more effective by LassoCV
 
-def is_residential(ms_zoning):
-    return ms_zoning.isin(['RH', 'RL', 'RP', 'RM', 'FV'])
+ transform skewed data by log(1 + x)
 
-
-def split_by_zoning(df):
-    all_zones = df['MSZoning']
-
-    resident = is_residential(all_zones)
-    not_resident = ~resident
-
-    return [df[resident], df[not_resident]]
-
-
-def show_buy_per_years():
-    # test_df = pd.read_csv(filepath_or_buffer="resources/test.csv")
-    df = pd.read_csv(filepath_or_buffer="resources/train.csv")
-
-    years_zoning = df[['MSZoning', 'YrSold']]
-
-    group = years_zoning.copy()
-    zones = group['MSZoning'].unique()
-
-    by_zones = [group[group['MSZoning'] == z] for z in zones]
-
-    zones_dict = {}
-    for z in by_zones:
-        index = z['MSZoning'].unique()[0]
-        zones_dict[index] = z['YrSold'].as_matrix()
-        
-    plt.hist(zones_dict.values(), label=zones_dict.keys())
-    plt.legend(zones_dict.keys())
-    plt.xticks(range(2006, 2011))
-    plt.show()
+ fit 0 or None by logic
+ transform categorical number to categorical
+ transform categorical by LabelEncoder
+ transform categorical by dummies
+ use ensemble methods 
+ Out liars 
+ if feature has > 15% missing data delete it
+"""
 
 
-def encode_labels(df):
-    column_encoders = {}
-    for column_name in df:
-        column = df[column_name]
-        if column.dtype == 'object' or column.dtype == 'str':
-            column = column.astype(str)
-            labels = column.unique()
+def select_features(data, price):
+    lr = LinearRegression()
+    selector = RFE(lr, n_features_to_select=3)
+    # selector = RFE(lr)
+    selector.fit(data, price)
 
-            le = LabelEncoder()
-            le.fit(labels)
-            column_encoders[column_name] = le
+    print(selector.support_)
+    print(selector.ranking_)
 
-            df[column_name] = column.apply(lambda v: le.transform([v])[0])
+    column_i = []
+    for i in range(len(selector.support_)):
+        if ~selector.support_[i]:
+            column_i.append(i)
 
-
-def show_kernel_pca(data, kernel):
-    pca = KernelPCA(n_components=3, kernel=kernel)
-    pca.fit(data)
-    new_data = pca.transform(data)
-
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    ax.scatter(new_data[:, 0], new_data[:, 1], new_data[:, 2], marker='.')
-    plt.show()
-
-
-def show_pca(data):
-    pca = PCA(n_components=20)
-    pca.fit(data)
-    new_data = pca.transform(data)
-
-    print(pca.explained_variance_ratio_)
-    print(pca.singular_values_)
-    print(pca.noise_variance_)
-
-    # n_comp = [i for i in range(len(pca.explained_variance_ratio_))]
-
-    # plt.scatter(n_comp, pca.explained_variance_ratio_, marker='.')
-
-    # plt.scatter(new_data[:, 0], new_data[:, 1], marker='.')
-    # fig = plt.figure()
-    # ax = fig.add_subplot(111, projection='3d')
-    # ax.scatter(new_data[:, 0], new_data[:, 1], new_data[:, 2], marker='.')
-    # plt.show()
-
-    return new_data
-
-
-def show_mds(data):
-    mds = MDS(n_components=3)
-    new_data = mds.fit_transform(data)
-
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    ax.scatter(new_data[:, 0], new_data[:, 1], new_data[:, 2], marker='.')
-    plt.show()
-
-
-def show_lda(data):
-    lda = LatentDirichletAllocation(n_components=3)
-    new_data = lda.fit_transform(data)
-    # plt.scatter(new_data[:, 0], new_data[:, 1], marker='.')
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    ax.scatter(new_data[:, 0], new_data[:, 1], new_data[:, 2], marker='.')
-    plt.show()
+    return column_i
 
 
 def prepare_data():
     df = pd.read_csv(filepath_or_buffer="resources/train.csv").fillna(0)
+
     price = df['SalePrice'].as_matrix()
 
     df = df.drop(['SalePrice', 'Id'], 1)
-
     encode_labels(df)
+
+    extract_columns = select_features(df.as_matrix(), price)
+
+    print(len(df.columns.values))
+    df = df.drop(df.columns[extract_columns], axis=1)
+    print(len(df.columns.values))
+
     data = df.as_matrix()
 
     feature = [np.array(v) for v in data]
@@ -145,7 +88,8 @@ def main():
 
     pred = lr.predict(test_feature)
 
-    accuracy = r2_score(test_price, pred)
+    # accuracy = r2_score(test_price, pred)
+    accuracy = sqrt(mean_squared_error(test_price, pred))
     print('accuracy', accuracy)
 
     # plt.scatter(train_feature, price, color='b', marker='.')
@@ -154,41 +98,89 @@ def main():
     # plt.show()
 
 
-def main__():
+def replace_dummies(df):
+    new_df = df
+    for column_name in df:
+        column = df[column_name]
+        if column.dtype == 'object' or column.dtype == 'str':
+            print('column_name', column_name)
+            dummies = pd.get_dummies(column, prefix=column_name)
+            print(dummies)
+            new_df = new_df.drop([column_name], axis=1)
+            # new_df = new_df.join(dummies)
+            new_df = pd.concat([new_df, dummies], axis=1)
+
+    return new_df
+
+
+def show_zoomed_heatmap():
     df = pd.read_csv(filepath_or_buffer="resources/train.csv").fillna(0)
-    price = df['SalePrice'].as_matrix()
-    price = minmax_scale(price)
-    df = df.drop(['SalePrice', 'Id'], 1)
+    df = df.drop(['Id'], 1)
 
-    encode_labels(df)
-    data = df.as_matrix()
+    corrmat = df.corr()
 
-    pca_data = show_pca(data)
-
-    data = minmax_scale(pca_data)
-
-    # for kernel in ["linear", "poly", "rbf", "sigmoid", "cosine", "precomputed"]:
-    #     show_kernel_pca(data, kernel)
-    # show_lda(data)
-    # show_mds(data)
-
-    lr = LinearRegression()
-    selector = RFE(lr)
-    selector.fit(data, price)
-
-    print(selector.support_)
-    print(selector.ranking_)
-
-    # for i in range(len(selector.support_)):
-    #     if selector.support_[i]:
-    #         print(df.iloc[:, [i]].head(1))
-
-    selected_data = selector.transform(data)
-    selected_data = selected_data[0:, 0]
-
-    plt.scatter(selected_data, price, marker='.')
+    k = 10  # number of variables for heatmap
+    cols = corrmat.nlargest(k, 'SalePrice')['SalePrice'].index
+    cm = np.corrcoef(df[cols].values.T)
+    sns.set(font_scale=1.25)
+    hm = sns.heatmap(cm, cbar=True, annot=True, square=True, fmt='.2f', annot_kws={'size': 10}, yticklabels=cols.values,
+                     xticklabels=cols.values)
     plt.show()
 
 
+def show_multi_plot():
+    df = pd.read_csv(filepath_or_buffer="resources/train.csv")
+
+    sns.set()
+    cols = ['SalePrice', 'OverallQual', 'GrLivArea', 'GarageCars', 'TotalBsmtSF', 'FullBath', 'YearBuilt']
+    sns.pairplot(df[cols], size=2)
+    plt.show()
+
+
+def show_heatmap():
+    df = pd.read_csv(filepath_or_buffer="resources/train.csv").fillna(0)
+    df = df.drop(['Id'], 1)
+
+    print(df.columns.values)
+
+    corr = df.corr()
+
+    print(corr.values.shape)
+    print(corr.columns.values)
+    corr_data = corr.values
+    columns = corr.columns.values
+
+    fig, ax = plt.subplots()
+    im = ax.imshow(corr_data)
+
+    ax.set_xticks(np.arange(len(columns)))
+    ax.set_yticks(np.arange(len(columns)))
+
+    ax.set_xticklabels(columns)
+    ax.set_yticklabels(columns)
+
+    plt.setp(ax.get_xticklabels(), rotation=45, ha="right",
+             rotation_mode="anchor")
+
+    # Loop over data dimensions and create text annotations.
+    # for i in range(len(columns)):
+    #     for j in range(len(columns)):
+    #         text = ax.text(j, i, corr_data[i, j],
+    #                        ha="center", va="center", color="w")
+
+    fig.tight_layout()
+    plt.show()
+
+
+# def cross_validation(y_orig, y_predic):
+#     cross_val_score()
+
+
 if __name__ == "__main__":
-    main()
+    # main()
+    # show_heatmap()
+    # show_zoomed_heatmap()
+    show_multi_plot()
+
+
+
