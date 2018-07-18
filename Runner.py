@@ -14,7 +14,7 @@ from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import minmax_scale
 from sklearn.model_selection import train_test_split, cross_val_score
 from sklearn.metrics import mean_squared_error, r2_score
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, Imputer
 import seaborn as sns
 
 
@@ -195,6 +195,26 @@ def drop_features_with_nan(df):
     print(df.shape)
 
 
+def transform_number_categorical_to_str_categorical(df):
+    number_categorical = ['MSSubClass', 'OverallQual', 'OverallCond']
+
+    for column in number_categorical:
+        is_null = list(
+                        filter(lambda x: x,
+                               df[column].isnull()
+                               )
+                    )
+        if is_null:
+            raise Exception('There is a null')
+
+    for column_name in number_categorical:
+        df[column_name] = df[column_name].astype(str)
+
+
+def fill_nan(df):
+    imputer = Imputer()
+
+
 def drop_by_corr(df):
     culumns = ['GarageArea', 'TotRmsAbvGrd', '1stFlrSF']
     df.drop(labels=culumns, axis=1, inplace=True)
@@ -210,9 +230,11 @@ if __name__ == "__main__":
 
     drop_features_with_nan(df)
     drop_by_corr(df)
+    transform_number_categorical_to_str_categorical(df)
+    fill_nan(df)
 
     # show_heatmap(df)
-    show_zoomed_heatmap(df)
+    # show_zoomed_heatmap(df)
     # show_multi_plot(df)
 
 
