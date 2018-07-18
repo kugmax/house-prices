@@ -117,7 +117,7 @@ def replace_dummies(df):
 def show_zoomed_heatmap(df):
     corrmat = df.corr()
 
-    k = 20  # number of variables for heatmap
+    k = 10
     cols = corrmat.nlargest(k, 'SalePrice')['SalePrice'].index
     print('cols', cols)
 
@@ -178,8 +178,6 @@ def get_percentage_missing(series):
 def drop_features_with_nan(df):
     nan_percentage = {}
 
-    print(df.shape)
-
     for column_name in df:
         nan_percentage[column_name] = get_percentage_missing(df[column_name])
 
@@ -187,12 +185,7 @@ def drop_features_with_nan(df):
                               filter(lambda x: x[1] > max_nan_percentage, nan_percentage.items()))
                           )
 
-    print(len(column_to_drop))
-    print(column_to_drop)
-
     df.drop(labels=column_to_drop, axis=1, inplace=True)
-
-    print(df.shape)
 
 
 def transform_number_categorical_to_str_categorical(df):
@@ -212,7 +205,13 @@ def transform_number_categorical_to_str_categorical(df):
 
 
 def fill_nan(df):
-    imputer = Imputer()
+    for column_name in df:
+        column = df[column_name]
+        if column.isnull().sum() > 0:
+            if column.dtype == 'object' or column.dtype == 'str':
+                df[column_name].fillna(column.mode()[0], inplace=True)
+            else:
+                df[column_name].fillna(column.mean(), inplace=True)
 
 
 def drop_by_corr(df):
@@ -232,9 +231,10 @@ if __name__ == "__main__":
     drop_by_corr(df)
     transform_number_categorical_to_str_categorical(df)
     fill_nan(df)
+    df = pd.get_dummies(df)
 
     # show_heatmap(df)
-    # show_zoomed_heatmap(df)
+    show_zoomed_heatmap(df)
     # show_multi_plot(df)
 
 
