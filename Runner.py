@@ -20,6 +20,7 @@ import seaborn as sns
 
 from Tools import encode_labels
 
+max_nan_percentage = 0.15
 seed = 7
 np.random.seed(seed)
 
@@ -113,34 +114,30 @@ def replace_dummies(df):
     return new_df
 
 
-def show_zoomed_heatmap():
-    df = pd.read_csv(filepath_or_buffer="resources/train.csv").fillna(0)
-    df = df.drop(['Id'], 1)
-
+def show_zoomed_heatmap(df):
     corrmat = df.corr()
 
-    k = 10  # number of variables for heatmap
+    k = 20  # number of variables for heatmap
     cols = corrmat.nlargest(k, 'SalePrice')['SalePrice'].index
+    print('cols', cols)
+
     cm = np.corrcoef(df[cols].values.T)
+    print(cm)
+
     sns.set(font_scale=1.25)
     hm = sns.heatmap(cm, cbar=True, annot=True, square=True, fmt='.2f', annot_kws={'size': 10}, yticklabels=cols.values,
                      xticklabels=cols.values)
     plt.show()
 
 
-def show_multi_plot():
-    df = pd.read_csv(filepath_or_buffer="resources/train.csv")
-
+def show_multi_plot(df):
     sns.set()
     cols = ['SalePrice', 'OverallQual', 'GrLivArea', 'GarageCars', 'TotalBsmtSF', 'FullBath', 'YearBuilt']
     sns.pairplot(df[cols], size=2)
     plt.show()
 
 
-def show_heatmap():
-    df = pd.read_csv(filepath_or_buffer="resources/train.csv").fillna(0)
-    df = df.drop(['Id'], 1)
-
+def show_heatmap(df):
     print(df.columns.values)
 
     corr = df.corr()
@@ -172,15 +169,54 @@ def show_heatmap():
     plt.show()
 
 
-# def cross_validation(y_orig, y_predic):
-#     cross_val_score()
+def get_percentage_missing(series):
+    num = series.isnull().sum()
+    den = len(series)
+    return round(num / den, 2)
+
+
+def drop_features_with_nan(df):
+    nan_percentage = {}
+
+    print(df.shape)
+
+    for column_name in df:
+        nan_percentage[column_name] = get_percentage_missing(df[column_name])
+
+    column_to_drop = list(map(lambda x: x[0],
+                              filter(lambda x: x[1] > max_nan_percentage, nan_percentage.items()))
+                          )
+
+    print(len(column_to_drop))
+    print(column_to_drop)
+
+    df.drop(labels=column_to_drop, axis=1, inplace=True)
+
+    print(df.shape)
+
+
+def drop_by_corr(df):
+    culumns = ['GarageArea', 'TotRmsAbvGrd', '1stFlrSF']
+    df.drop(labels=culumns, axis=1, inplace=True)
 
 
 if __name__ == "__main__":
     # main()
-    # show_heatmap()
-    # show_zoomed_heatmap()
-    show_multi_plot()
+
+    # show_multi_plot()
+
+    df = pd.read_csv(filepath_or_buffer="resources/train.csv")
+    df.drop(['Id'], 1, inplace=True)
+
+    drop_features_with_nan(df)
+    drop_by_corr(df)
+
+    # show_heatmap(df)
+    show_zoomed_heatmap(df)
+    # show_multi_plot(df)
+
+
+
 
 
 
