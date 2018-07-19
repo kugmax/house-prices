@@ -9,9 +9,11 @@ from sklearn.linear_model import LinearRegression, LassoCV, Lasso, Ridge, Elasti
 from sklearn.model_selection import KFold, train_test_split, cross_val_score
 from sklearn.metrics import mean_squared_error, r2_score
 import seaborn as sns
+from sklearn.neighbors import KNeighborsRegressor
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import RobustScaler, StandardScaler
 from sklearn.svm import SVC
+from sklearn.tree import DecisionTreeRegressor
 
 from Tools import encode_labels, show_sale_price_statistic
 
@@ -233,9 +235,9 @@ def rmsle(y, y_pred):
 
 
 def predict(X, Y):
-    X = StandardScaler().fit_transform(X)
+    # TODO: need remove outlines
 
-    # x_train, x_test, y_train, y_test = train_test_split(X, Y, test_size=0.30, random_state=seed)
+    X = StandardScaler().fit_transform(X)
 
     linear_model = LinearRegression()
     score = rmsle_cv(linear_model, X, Y)
@@ -256,6 +258,14 @@ def predict(X, Y):
     ada_boost_model = AdaBoostRegressor()
     score = rmsle_cv(ada_boost_model, X, Y)
     print("AdaBoostRegressor score: {:.4f} ({:.4f})".format(score.mean(), score.std()))
+
+    decision_tree_model = DecisionTreeRegressor(min_samples_split=20)
+    score = rmsle_cv(decision_tree_model, X, Y)
+    print("DecisionTreeRegressor score: {:.4f} ({:.4f})".format(score.mean(), score.std()))
+
+    k_neighborn_model = KNeighborsRegressor()
+    score = rmsle_cv(k_neighborn_model, X, Y)
+    print("KNeighborsRegressor score: {:.4f} ({:.4f})".format(score.mean(), score.std()))
 
     # stacked_averaged_models = StackingAveragedModels(base_models=(ENet, GBoost, KRR),
     #                                                  meta_model=lasso)
