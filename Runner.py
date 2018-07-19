@@ -334,8 +334,6 @@ if __name__ == "__main__":
     # plt.title("Coefficients in the Lasso Model")
     # plt.show()
 
-
-
     print(X_tr.shape)
 
 
