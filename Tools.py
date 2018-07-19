@@ -123,8 +123,7 @@ def encode_labels(df):
             df[column_name] = column.apply(lambda v: le.transform([v])[0])
 
 
-def show_sale_price_statistic():
-    df = pd.read_csv(filepath_or_buffer="resources/train.csv")
+def show_sale_price_statistic(df):
     price = df['SalePrice']
 
     sns.distplot(price, fit=norm)
@@ -187,6 +186,7 @@ def main():
 
 if __name__ == "__main__":
     # main()
-    show_sale_price_statistic()
+    df = pd.read_csv(filepath_or_buffer="resources/train.csv")
+    show_sale_price_statistic(df)
 
     # print(pd.read_csv(filepath_or_buffer="resources/train.csv").describe())

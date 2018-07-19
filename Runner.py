@@ -3,23 +3,18 @@ from math import sqrt
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
-from sklearn.decomposition import PCA
-from sklearn.decomposition import KernelPCA
-from sklearn.decomposition import LatentDirichletAllocation
-from sklearn.preprocessing import LabelEncoder
-from sklearn.manifold import MDS
-from mpl_toolkits.mplot3d import Axes3D
 from sklearn.feature_selection import RFE
-from sklearn.linear_model import LinearRegression
-from sklearn.preprocessing import minmax_scale
-from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.linear_model import LinearRegression, LassoCV, Lasso
+from sklearn.model_selection import KFold, train_test_split, cross_val_score
 from sklearn.metrics import mean_squared_error, r2_score
-from sklearn.preprocessing import StandardScaler, Imputer
 import seaborn as sns
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import RobustScaler, StandardScaler
+from sklearn.svm import SVC
 
+from Tools import encode_labels, show_sale_price_statistic
 
-from Tools import encode_labels
-
+hight_coreletion_with_target = ['SalePrice', 'OverallQual', 'GrLivArea', 'GarageCars', 'TotalBsmtSF', 'FullBath', 'YearBuilt']
 max_nan_percentage = 0.15
 seed = 7
 np.random.seed(seed)
@@ -28,15 +23,15 @@ np.random.seed(seed)
 Steps:
  understend witch feature more effective by LassoCV
 
- transform skewed data by log(1 + x)
+ + transform skewed data by log(1 + x)
 
- fit 0 or None by logic
- transform categorical number to categorical
- transform categorical by LabelEncoder
- transform categorical by dummies
+ + fit mean or most frequent by logic
+ + transform categorical number to categorical
+ - transform categorical by LabelEncoder
+ + transform categorical by dummies
  use ensemble methods 
  Out liars 
- if feature has > 15% missing data delete it
+ + if feature has > 15% missing data delete it
 """
 
 
@@ -119,10 +114,8 @@ def show_zoomed_heatmap(df):
 
     k = 10
     cols = corrmat.nlargest(k, 'SalePrice')['SalePrice'].index
-    print('cols', cols)
 
     cm = np.corrcoef(df[cols].values.T)
-    print(cm)
 
     sns.set(font_scale=1.25)
     hm = sns.heatmap(cm, cbar=True, annot=True, square=True, fmt='.2f', annot_kws={'size': 10}, yticklabels=cols.values,
@@ -132,8 +125,7 @@ def show_zoomed_heatmap(df):
 
 def show_multi_plot(df):
     sns.set()
-    cols = ['SalePrice', 'OverallQual', 'GrLivArea', 'GarageCars', 'TotalBsmtSF', 'FullBath', 'YearBuilt']
-    sns.pairplot(df[cols], size=2)
+    sns.pairplot(df[hight_coreletion_with_target], size=2)
     plt.show()
 
 
@@ -219,23 +211,135 @@ def drop_by_corr(df):
     df.drop(labels=culumns, axis=1, inplace=True)
 
 
-if __name__ == "__main__":
-    # main()
+def log_transform(df):
+    for col_name in hight_coreletion_with_target:
+        try:
+            if df[col_name].dtype not in ['object', 'str']:
+                df[col_name] = np.log1p(df[col_name])
+        except Exception:
+            pass
 
-    # show_multi_plot()
+
+def rmsle_cv(model, x_train, y_train):
+    n_folds = 5
+    kf = KFold(n_folds, shuffle=True, random_state=seed).get_n_splits(x_train)
+    rmse = np.sqrt(-cross_val_score(model, x_train, y_train, scoring="neg_mean_squared_error", cv=kf))
+    return rmse
+
+
+def rmsle(y, y_pred):
+    return np.sqrt(mean_squared_error(y, y_pred))
+
+
+def error(actual, predicted):
+    actual = np.log(actual)
+    predicted = np.log(predicted)
+    return np.sqrt(np.sum(np.square(actual-predicted))/len(actual))
+
+
+def predict():
+    stacked_averaged_models = StackingAveragedModels(base_models=(ENet, GBoost, KRR),
+                                                     meta_model=lasso)
+
+    score = rmsle_cv(stacked_averaged_models)
+    print("Stacking Averaged models score: {:.4f} ({:.4f})".format(score.mean(), score.std()))
+
+    stacked_averaged_models.fit(train.values, y_train)
+    stacked_train_pred = stacked_averaged_models.predict(train.values)
+    stacked_pred = np.expm1(stacked_averaged_models.predict(test.values))
+    print(rmsle(y_train, stacked_train_pred))
+
+    model_xgb.fit(train, y_train)
+    xgb_train_pred = model_xgb.predict(train)
+    xgb_pred = np.expm1(model_xgb.predict(test))
+    print(rmsle(y_train, xgb_train_pred))
+
+    model_lgb.fit(train, y_train)
+    lgb_train_pred = model_lgb.predict(train)
+    lgb_pred = np.expm1(model_lgb.predict(test.values))
+    print(rmsle(y_train, lgb_train_pred))
+
+    print('RMSLE score on train data:')
+    print(rmsle(y_train, stacked_train_pred * 0.70 +
+                xgb_train_pred * 0.15 + lgb_train_pred * 0.15))
+
+    ensemble = stacked_pred * 0.70 + xgb_pred * 0.15 + lgb_pred * 0.15
+
+    print()
+
+
+if __name__ == "__main__":
+    # start_drop = ['Id', 'SaleCondition', 'SaleType']
+    start_drop = ['Id']
 
     df = pd.read_csv(filepath_or_buffer="resources/train.csv")
-    df.drop(['Id'], 1, inplace=True)
+    df.drop(start_drop, 1, inplace=True)
 
     drop_features_with_nan(df)
     drop_by_corr(df)
     transform_number_categorical_to_str_categorical(df)
     fill_nan(df)
-    df = pd.get_dummies(df)
+    encode_labels(df)
+    log_transform(df)
 
-    # show_heatmap(df)
-    show_zoomed_heatmap(df)
+    # show_sale_price_statistic(df)
     # show_multi_plot(df)
+    # show_heatmap(df)
+    # show_zoomed_heatmap(df)
+
+    df_test = pd.read_csv(filepath_or_buffer="resources/test.csv")
+    df_test.drop(start_drop, 1, inplace=True)
+
+    drop_features_with_nan(df_test)
+    drop_by_corr(df_test)
+    transform_number_categorical_to_str_categorical(df_test)
+    fill_nan(df_test)
+    encode_labels(df_test)
+    log_transform(df_test)
+
+    y_train = df['SalePrice']
+    df.drop(['SalePrice'], 1, inplace=True)
+    x_train = pd.get_dummies(df)
+
+    # lasso = make_pipeline(RobustScaler(), Lasso(alpha=0.0005, random_state=seed))
+    # cv = rmsle_cv(lasso, df, y_train)
+    # print(cv)
+
+
+    # svm = SVC()
+    # cv = rmsle_cv(svm, df, y_train)
+    # print(cv)
+
+    x_train = StandardScaler().fit_transform(x_train)
+
+    X_tr, X_val, y_tr, y_val = train_test_split(x_train, y_train, random_state=seed)
+
+    model_lasso = LassoCV(alphas=[1, 0.1, 0.001, 0.0005]).fit(x_train, y_train)
+    # y_predict = model_lasso.predict(df_test)
+    y_predict = model_lasso.predict(X_val)
+    print(error(y_val, y_predict))
+    print(rmsle(y_val, y_predict))
+    #
+    # print(error())
+
+    # coef = pd.Series(model_lasso.coef_, index=x_train.columns)
+    #
+    # print("Lasso picked " + str(sum(coef != 0)) + " variables and eliminated the other " +
+    #       str(sum(coef == 0)) + " variables")
+    #
+    # imp_coef = pd.concat([coef.sort_values().head(10),
+    #                       coef.sort_values().tail(10)])
+    # plt.rcParams['figure.figsize'] = (8.0, 10.0)
+    # imp_coef.plot(kind="barh")
+    # plt.title("Coefficients in the Lasso Model")
+    # plt.show()
+
+
+
+    print(X_tr.shape)
+
+
+
 
 
 
