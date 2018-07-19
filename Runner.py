@@ -3,8 +3,9 @@ from math import sqrt
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
+from sklearn.ensemble import AdaBoostRegressor
 from sklearn.feature_selection import RFE
-from sklearn.linear_model import LinearRegression, LassoCV, Lasso
+from sklearn.linear_model import LinearRegression, LassoCV, Lasso, Ridge, ElasticNet
 from sklearn.model_selection import KFold, train_test_split, cross_val_score
 from sklearn.metrics import mean_squared_error, r2_score
 import seaborn as sns
@@ -231,41 +232,57 @@ def rmsle(y, y_pred):
     return np.sqrt(mean_squared_error(y, y_pred))
 
 
-def error(actual, predicted):
-    actual = np.log(actual)
-    predicted = np.log(predicted)
-    return np.sqrt(np.sum(np.square(actual-predicted))/len(actual))
+def predict(X, Y):
+    X = StandardScaler().fit_transform(X)
 
+    # x_train, x_test, y_train, y_test = train_test_split(X, Y, test_size=0.30, random_state=seed)
 
-def predict():
-    stacked_averaged_models = StackingAveragedModels(base_models=(ENet, GBoost, KRR),
-                                                     meta_model=lasso)
+    linear_model = LinearRegression()
+    score = rmsle_cv(linear_model, X, Y)
+    print("LinearRegression score: {:.4f} ({:.4f})".format(score.mean(), score.std()))
 
-    score = rmsle_cv(stacked_averaged_models)
-    print("Stacking Averaged models score: {:.4f} ({:.4f})".format(score.mean(), score.std()))
+    lasso_model = Lasso(alpha=0.0005, random_state=seed)
+    score = rmsle_cv(lasso_model, X, Y)
+    print("Lasso score: {:.4f} ({:.4f})".format(score.mean(), score.std()))
 
-    stacked_averaged_models.fit(train.values, y_train)
-    stacked_train_pred = stacked_averaged_models.predict(train.values)
-    stacked_pred = np.expm1(stacked_averaged_models.predict(test.values))
-    print(rmsle(y_train, stacked_train_pred))
+    ridge_model = Ridge(alpha=0.0005, random_state=seed)
+    score = rmsle_cv(ridge_model, X, Y)
+    print("Ridge score: {:.4f} ({:.4f})".format(score.mean(), score.std()))
 
-    model_xgb.fit(train, y_train)
-    xgb_train_pred = model_xgb.predict(train)
-    xgb_pred = np.expm1(model_xgb.predict(test))
-    print(rmsle(y_train, xgb_train_pred))
+    elastic_net_model = ElasticNet(alpha=0.0005, random_state=seed)
+    score = rmsle_cv(elastic_net_model, X, Y)
+    print("ElasticNet score: {:.4f} ({:.4f})".format(score.mean(), score.std()))
 
-    model_lgb.fit(train, y_train)
-    lgb_train_pred = model_lgb.predict(train)
-    lgb_pred = np.expm1(model_lgb.predict(test.values))
-    print(rmsle(y_train, lgb_train_pred))
+    ada_boost_model = AdaBoostRegressor()
+    score = rmsle_cv(ada_boost_model, X, Y)
+    print("AdaBoostRegressor score: {:.4f} ({:.4f})".format(score.mean(), score.std()))
 
-    print('RMSLE score on train data:')
-    print(rmsle(y_train, stacked_train_pred * 0.70 +
-                xgb_train_pred * 0.15 + lgb_train_pred * 0.15))
-
-    ensemble = stacked_pred * 0.70 + xgb_pred * 0.15 + lgb_pred * 0.15
-
-    print()
+    # stacked_averaged_models = StackingAveragedModels(base_models=(ENet, GBoost, KRR),
+    #                                                  meta_model=lasso)
+    #
+    # score = rmsle_cv(stacked_averaged_models)
+    # print("Stacking Averaged models score: {:.4f} ({:.4f})".format(score.mean(), score.std()))
+    #
+    # stacked_averaged_models.fit(train.values, y_train)
+    # stacked_train_pred = stacked_averaged_models.predict(train.values)
+    # stacked_pred = np.expm1(stacked_averaged_models.predict(test.values))
+    # print(rmsle(y_train, stacked_train_pred))
+    #
+    # model_xgb.fit(train, y_train)
+    # xgb_train_pred = model_xgb.predict(train)
+    # xgb_pred = np.expm1(model_xgb.predict(test))
+    # print(rmsle(y_train, xgb_train_pred))
+    #
+    # model_lgb.fit(train, y_train)
+    # lgb_train_pred = model_lgb.predict(train)
+    # lgb_pred = np.expm1(model_lgb.predict(test.values))
+    # print(rmsle(y_train, lgb_train_pred))
+    #
+    # print('RMSLE score on train data:')
+    # print(rmsle(y_train, stacked_train_pred * 0.70 +
+    #             xgb_train_pred * 0.15 + lgb_train_pred * 0.15))
+    #
+    # ensemble = stacked_pred * 0.70 + xgb_pred * 0.15 + lgb_pred * 0.15
 
 
 if __name__ == "__main__":
@@ -301,43 +318,7 @@ if __name__ == "__main__":
     df.drop(['SalePrice'], 1, inplace=True)
     x_train = pd.get_dummies(df)
 
-    # lasso = make_pipeline(RobustScaler(), Lasso(alpha=0.0005, random_state=seed))
-    # cv = rmsle_cv(lasso, df, y_train)
-    # print(cv)
-
-
-    # svm = SVC()
-    # cv = rmsle_cv(svm, df, y_train)
-    # print(cv)
-
-    x_train = StandardScaler().fit_transform(x_train)
-
-    X_tr, X_val, y_tr, y_val = train_test_split(x_train, y_train, random_state=seed)
-
-    model_lasso = LassoCV(alphas=[1, 0.1, 0.001, 0.0005]).fit(x_train, y_train)
-    # y_predict = model_lasso.predict(df_test)
-    y_predict = model_lasso.predict(X_val)
-    print(error(y_val, y_predict))
-    print(rmsle(y_val, y_predict))
-    #
-    # print(error())
-
-    # coef = pd.Series(model_lasso.coef_, index=x_train.columns)
-    #
-    # print("Lasso picked " + str(sum(coef != 0)) + " variables and eliminated the other " +
-    #       str(sum(coef == 0)) + " variables")
-    #
-    # imp_coef = pd.concat([coef.sort_values().head(10),
-    #                       coef.sort_values().tail(10)])
-    # plt.rcParams['figure.figsize'] = (8.0, 10.0)
-    # imp_coef.plot(kind="barh")
-    # plt.title("Coefficients in the Lasso Model")
-    # plt.show()
-
-    print(X_tr.shape)
-
-
-
+    predict(x_train, y_train)
 
 
 
