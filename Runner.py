@@ -3,6 +3,10 @@ from math import sqrt
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib import font_manager
+from nltk.classify import svm
+from scipy.stats import stats
+from sklearn.covariance import EllipticEnvelope
 from sklearn.ensemble import AdaBoostRegressor
 from sklearn.feature_selection import RFE
 from sklearn.linear_model import LinearRegression, LassoCV, Lasso, Ridge, ElasticNet
@@ -12,7 +16,7 @@ import seaborn as sns
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import RobustScaler, StandardScaler
-from sklearn.svm import SVC
+from sklearn.svm import SVC, OneClassSVM
 from sklearn.tree import DecisionTreeRegressor
 
 from Tools import encode_labels, show_sale_price_statistic
@@ -36,65 +40,6 @@ Steps:
  Out liars 
  + if feature has > 15% missing data delete it
 """
-
-
-def select_features(data, price):
-    lr = LinearRegression()
-    selector = RFE(lr, n_features_to_select=3)
-    # selector = RFE(lr)
-    selector.fit(data, price)
-
-    print(selector.support_)
-    print(selector.ranking_)
-
-    column_i = []
-    for i in range(len(selector.support_)):
-        if ~selector.support_[i]:
-            column_i.append(i)
-
-    return column_i
-
-
-def prepare_data():
-    df = pd.read_csv(filepath_or_buffer="resources/train.csv").fillna(0)
-
-    price = df['SalePrice'].as_matrix()
-
-    df = df.drop(['SalePrice', 'Id'], 1)
-    encode_labels(df)
-
-    extract_columns = select_features(df.as_matrix(), price)
-
-    print(len(df.columns.values))
-    df = df.drop(df.columns[extract_columns], axis=1)
-    print(len(df.columns.values))
-
-    data = df.as_matrix()
-
-    feature = [np.array(v) for v in data]
-    label = list(map(lambda v: np.array([v]), price))
-
-    return train_test_split(feature, label, test_size=0.3, random_state=seed)
-
-
-def main():
-    train_feature, test_feature, price, test_price = prepare_data()
-
-    lr = LinearRegression()
-    lr.fit(train_feature, price)
-    print('coef_', lr.coef_)
-    print('intercept_', lr.intercept_)
-
-    pred = lr.predict(test_feature)
-
-    # accuracy = r2_score(test_price, pred)
-    accuracy = sqrt(mean_squared_error(test_price, pred))
-    print('accuracy', accuracy)
-
-    # plt.scatter(train_feature, price, color='b', marker='.')
-    # plt.scatter(test_feature, test_price, color='r', marker='.')
-    # plt.plot(test_feature, pred)
-    # plt.show()
 
 
 def replace_dummies(df):
@@ -295,12 +240,34 @@ def predict(X, Y):
     # ensemble = stacked_pred * 0.70 + xgb_pred * 0.15 + lgb_pred * 0.15
 
 
+def drop_outlines(df):
+    price = df['SalePrice']
+
+    Y = price.as_matrix()
+
+    for column_name in hight_coreletion_with_target:
+        column = df[column_name]
+
+        plt.scatter(column, price, marker='.')
+        plt.xlabel(column_name)
+        plt.ylabel('SalePrice')
+
+        X = column.as_matrix()
+        # for i in range(len(price)):
+        #     plt.text(X[i], Y[i], i)
+        plt.show()
+
+
 if __name__ == "__main__":
-    # start_drop = ['Id', 'SaleCondition', 'SaleType']
     start_drop = ['Id']
+    outlines_drop = [524, 1299, 692, 1183, 186]
 
     df = pd.read_csv(filepath_or_buffer="resources/train.csv")
+    for n in outlines_drop:
+        df.drop(df[df['Id'] == n].index, inplace=True)
     df.drop(start_drop, 1, inplace=True)
+    # df.drop(outlines_drop, 1, inplace=True)
+
 
     drop_features_with_nan(df)
     drop_by_corr(df)
@@ -308,9 +275,12 @@ if __name__ == "__main__":
     fill_nan(df)
     encode_labels(df)
     log_transform(df)
+    # drop_outlines(df)
+
+    # exit(0)
 
     # show_sale_price_statistic(df)
-    # show_multi_plot(df)
+    show_multi_plot(df)
     # show_heatmap(df)
     # show_zoomed_heatmap(df)
 

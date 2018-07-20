@@ -16,4 +16,4 @@ if __name__ == "__main__":
 
     lasso = Lasso(alpha=0.0005, random_state=seed)
     error_cv = rmsle_cv(lasso, y_actual, y_predict)
-    print(', '.join(['%.4f' % v for v in error_cv]))
+    print("Lasso score: {:.4f} ({:.4f})".format(error_cv.mean(), error_cv.std()))
