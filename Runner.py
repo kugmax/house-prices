@@ -21,15 +21,14 @@ from sklearn.tree import DecisionTreeRegressor
 
 from Tools import encode_labels, show_sale_price_statistic
 
-hight_coreletion_with_target = ['SalePrice', 'OverallQual', 'GrLivArea', 'GarageCars', 'TotalBsmtSF', 'FullBath', 'YearBuilt']
+target_column = 'SalePrice'
+hight_coreletion_with_target = [target_column, 'OverallQual', 'GrLivArea', 'GarageCars', 'TotalBsmtSF', 'FullBath', 'YearBuilt']
 max_nan_percentage = 0.15
 seed = 7
 np.random.seed(seed)
 
 """
 Steps:
- understend witch feature more effective by LassoCV
-
  + transform skewed data by log(1 + x)
 
  + fit mean or most frequent by logic
@@ -37,7 +36,7 @@ Steps:
  - transform categorical by LabelEncoder
  + transform categorical by dummies
  use ensemble methods 
- Out liars 
+ + Out liars 
  + if feature has > 15% missing data delete it
 """
 
@@ -99,7 +98,6 @@ def show_heatmap(df):
     plt.setp(ax.get_xticklabels(), rotation=45, ha="right",
              rotation_mode="anchor")
 
-    # Loop over data dimensions and create text annotations.
     # for i in range(len(columns)):
     #     for j in range(len(columns)):
     #         text = ax.text(j, i, corr_data[i, j],
@@ -119,6 +117,7 @@ def drop_features_with_nan(df):
     nan_percentage = {}
 
     for column_name in df:
+        if column_name == target_column: continue
         nan_percentage[column_name] = get_percentage_missing(df[column_name])
 
     column_to_drop = list(map(lambda x: x[0],
@@ -146,6 +145,8 @@ def transform_number_categorical_to_str_categorical(df):
 
 def fill_nan(df):
     for column_name in df:
+        if column_name == target_column: continue
+
         column = df[column_name]
         if column.isnull().sum() > 0:
             if column.dtype == 'object' or column.dtype == 'str':
@@ -187,94 +188,55 @@ def rmse(y_true, y_pred):
     return np.sqrt(sum_sq / n)
 
 
-def predict(X, Y):
-    X = StandardScaler().fit_transform(X)
+def predict(X_train, Y_trin, X_test):
+    lasso_model = Lasso(alpha=0.0005, random_state=seed)
+    lasso_model.fit(X_train, Y_trin)
 
-    linear_model = LinearRegression()
-    score = rmsle_cv(linear_model, X, Y)
-    print("LinearRegression score: {:.4f} ({:.4f})".format(score.mean(), score.std()))
+    y_test = lasso_model.predict(X_test)
 
+    y_test = np.exp(y_test)
+
+    index = [i for i in range(1461, 2920)]
+    y_test = pd.DataFrame(y_test, index=index)
+    y_test.columns = ['SalePrice']
+
+    y_test.to_csv('submission.csv', index_label='Id')
+    y_test.plot.hist(bins=20)
+
+
+def check_score(X, Y):
     lasso_model = Lasso(alpha=0.0005, random_state=seed)
     score = rmsle_cv(lasso_model, X, Y)
     print("Lasso score: {:.4f} ({:.4f})".format(score.mean(), score.std()))
 
-    ridge_model = Ridge(alpha=0.0005, random_state=seed)
-    score = rmsle_cv(ridge_model, X, Y)
-    print("Ridge score: {:.4f} ({:.4f})".format(score.mean(), score.std()))
+    return lasso_model
 
-    elastic_net_model = ElasticNet(alpha=0.0005, random_state=seed)
-    score = rmsle_cv(elastic_net_model, X, Y)
-    print("ElasticNet score: {:.4f} ({:.4f})".format(score.mean(), score.std()))
-
-    ada_boost_model = AdaBoostRegressor()
-    score = rmsle_cv(ada_boost_model, X, Y)
-    print("AdaBoostRegressor score: {:.4f} ({:.4f})".format(score.mean(), score.std()))
-
-    decision_tree_model = DecisionTreeRegressor(min_samples_split=20)
-    score = rmsle_cv(decision_tree_model, X, Y)
-    print("DecisionTreeRegressor score: {:.4f} ({:.4f})".format(score.mean(), score.std()))
-
-    k_neighborn_model = KNeighborsRegressor()
-    score = rmsle_cv(k_neighborn_model, X, Y)
-    print("KNeighborsRegressor score: {:.4f} ({:.4f})".format(score.mean(), score.std()))
-
-    # stacked_averaged_models = StackingAveragedModels(base_models=(ENet, GBoost, KRR),
-    #                                                  meta_model=lasso)
+    # linear_model = LinearRegression()
+    # score = rmsle_cv(linear_model, X, Y)
+    # print("LinearRegression score: {:.4f} ({:.4f})".format(score.mean(), score.std()))
     #
-    # score = rmsle_cv(stacked_averaged_models)
-    # print("Stacking Averaged models score: {:.4f} ({:.4f})".format(score.mean(), score.std()))
+    # ridge_model = Ridge(alpha=0.0005, random_state=seed)
+    # score = rmsle_cv(ridge_model, X, Y)
+    # print("Ridge score: {:.4f} ({:.4f})".format(score.mean(), score.std()))
     #
-    # stacked_averaged_models.fit(train.values, y_train)
-    # stacked_train_pred = stacked_averaged_models.predict(train.values)
-    # stacked_pred = np.expm1(stacked_averaged_models.predict(test.values))
-    # print(rmsle(y_train, stacked_train_pred))
+    # elastic_net_model = ElasticNet(alpha=0.0005, random_state=seed)
+    # score = rmsle_cv(elastic_net_model, X, Y)
+    # print("ElasticNet score: {:.4f} ({:.4f})".format(score.mean(), score.std()))
     #
-    # model_xgb.fit(train, y_train)
-    # xgb_train_pred = model_xgb.predict(train)
-    # xgb_pred = np.expm1(model_xgb.predict(test))
-    # print(rmsle(y_train, xgb_train_pred))
+    # ada_boost_model = AdaBoostRegressor()
+    # score = rmsle_cv(ada_boost_model, X, Y)
+    # print("AdaBoostRegressor score: {:.4f} ({:.4f})".format(score.mean(), score.std()))
     #
-    # model_lgb.fit(train, y_train)
-    # lgb_train_pred = model_lgb.predict(train)
-    # lgb_pred = np.expm1(model_lgb.predict(test.values))
-    # print(rmsle(y_train, lgb_train_pred))
+    # decision_tree_model = DecisionTreeRegressor(min_samples_split=20)
+    # score = rmsle_cv(decision_tree_model, X, Y)
+    # print("DecisionTreeRegressor score: {:.4f} ({:.4f})".format(score.mean(), score.std()))
     #
-    # print('RMSLE score on train data:')
-    # print(rmsle(y_train, stacked_train_pred * 0.70 +
-    #             xgb_train_pred * 0.15 + lgb_train_pred * 0.15))
-    #
-    # ensemble = stacked_pred * 0.70 + xgb_pred * 0.15 + lgb_pred * 0.15
+    # k_neighborn_model = KNeighborsRegressor()
+    # score = rmsle_cv(k_neighborn_model, X, Y)
+    # print("KNeighborsRegressor score: {:.4f} ({:.4f})".format(score.mean(), score.std()))
 
 
-def find_outliers(model, X, y, sigma=3):
-    # predict y values using model
-    try:
-        y_pred = pd.Series(model.predict(X), index=y.index)
-    # if predicting fails, try fitting the model first
-    except:
-        model.fit(X, y)
-        y_pred = pd.Series(model.predict(X), index=y.index)
-
-    # calculate residuals between the model prediction and true y values
-    resid = y - y_pred
-    mean_resid = resid.mean()
-    std_resid = resid.std()
-
-    # calculate z statistic, define outliers to be where |z|>sigma
-    z = (resid - mean_resid) / std_resid
-    outliers = z[abs(z) > sigma].index
-
-    # print and plot the results
-    print('R2=', model.score(X, y))
-    print('rmse=', rmse(y, y_pred))
-    print('---------------------------------------')
-
-    print('mean of residuals:', mean_resid)
-    print('std of residuals:', std_resid)
-    print('---------------------------------------')
-
-    print(len(outliers), 'outliers:')
-    print(outliers.tolist())
+def show_outliers(outliers, y, y_pred, z):
 
     plt.figure(figsize=(15, 5))
     ax_131 = plt.subplot(1, 3, 1)
@@ -296,54 +258,74 @@ def find_outliers(model, X, y, sigma=3):
     z.loc[outliers].plot.hist(color='r', bins=50, ax=ax_133)
     plt.legend(['Accepted', 'Outlier'])
     plt.xlabel('z')
-    # plt.show()
-
-    return outliers
+    plt.show()
 
 
-def drop_outlines(df):
+def find_outliers(model, X, y, sigma=3):
+    model.fit(X, y)
+    y_pred = pd.Series(model.predict(X), index=y.index)
+
+    resid = y - y_pred
+    mean_resid = resid.mean()
+    std_resid = resid.std()
+
+    z = (resid - mean_resid) / std_resid
+    outliers = z[abs(z) > sigma].index
+
+    return outliers, y, y_pred, z
+
+
+def drop_outlines(train):
     for column_name in hight_coreletion_with_target:
-        column = df[column_name]
+        column = train[column_name]
         X = np.array(column, dtype=float).reshape(-1, 1)
-        outliers = find_outliers(Lasso(), X, df['SalePrice'])
+        outliers, y, y_pred, z = find_outliers(Lasso(alpha=0.0005, random_state=seed), X, train['SalePrice'])
 
-        df.drop(outliers, inplace=True)
+        train.drop(outliers, inplace=True)
 
 
 if __name__ == "__main__":
     start_drop = ['Id']
 
-    df = pd.read_csv(filepath_or_buffer="resources/train.csv")
-    df.drop(start_drop, 1, inplace=True)
+    df_train = pd.read_csv(filepath_or_buffer="resources/train.csv")
+    df_test = pd.read_csv(filepath_or_buffer="resources/test.csv")
 
-    drop_features_with_nan(df)
-    drop_by_corr(df)
-    transform_number_categorical_to_str_categorical(df)
-    fill_nan(df)
-    encode_labels(df)
-    drop_outlines(df)
-    log_transform(df)
+    id_train = len(df_train.index)
+
+    df_all = pd.concat([df_train, df_test], sort=False)
+    df_all.drop(start_drop, 1, inplace=True)
+
+    drop_by_corr(df_all)
+    drop_features_with_nan(df_all)
+    transform_number_categorical_to_str_categorical(df_all)
+    fill_nan(df_all)
+    encode_labels(df_all)
+    log_transform(df_all)
+
+    x_train = df_all.iloc[:id_train, :]
+    x_test = df_all.iloc[id_train:, :]
+    drop_outlines(x_train)
+
+    id_train = len(x_train)
+    df_all = pd.concat([x_train, x_test], sort=False)
 
     # show_sale_price_statistic(df)
     # show_multi_plot(df)
     # show_heatmap(df)
     # show_zoomed_heatmap(df)
 
-    df_test = pd.read_csv(filepath_or_buffer="resources/test.csv")
-    df_test.drop(start_drop, 1, inplace=True)
+    y_train = df_all['SalePrice']
+    df_all.drop(['SalePrice'], 1, inplace=True)
+    x_train = pd.get_dummies(df_all)
+    x_train = StandardScaler().fit_transform(x_train)
 
-    drop_features_with_nan(df_test)
-    drop_by_corr(df_test)
-    transform_number_categorical_to_str_categorical(df_test)
-    fill_nan(df_test)
-    encode_labels(df_test)
-    log_transform(df_test)
+    x_test = x_train[id_train:, :]
+    x_train = x_train[:id_train, :]
+    y_train = y_train[:id_train]
 
-    y_train = df['SalePrice']
-    df.drop(['SalePrice'], 1, inplace=True)
-    x_train = pd.get_dummies(df)
+    check_score(x_train, y_train)
 
-    predict(x_train, y_train)
+    predict(x_train, y_train, x_test)
 
 
 
