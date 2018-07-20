@@ -179,9 +179,15 @@ def rmsle(y, y_pred):
     return np.sqrt(mean_squared_error(y, y_pred))
 
 
-def predict(X, Y):
-    # TODO: need remove outlines
+def rmse(y_true, y_pred):
+    diff = y_pred - y_true
+    sum_sq = sum(diff ** 2)
+    n = len(y_pred)
 
+    return np.sqrt(sum_sq / n)
+
+
+def predict(X, Y):
     X = StandardScaler().fit_transform(X)
 
     linear_model = LinearRegression()
@@ -240,47 +246,86 @@ def predict(X, Y):
     # ensemble = stacked_pred * 0.70 + xgb_pred * 0.15 + lgb_pred * 0.15
 
 
+def find_outliers(model, X, y, sigma=3):
+    # predict y values using model
+    try:
+        y_pred = pd.Series(model.predict(X), index=y.index)
+    # if predicting fails, try fitting the model first
+    except:
+        model.fit(X, y)
+        y_pred = pd.Series(model.predict(X), index=y.index)
+
+    # calculate residuals between the model prediction and true y values
+    resid = y - y_pred
+    mean_resid = resid.mean()
+    std_resid = resid.std()
+
+    # calculate z statistic, define outliers to be where |z|>sigma
+    z = (resid - mean_resid) / std_resid
+    outliers = z[abs(z) > sigma].index
+
+    # print and plot the results
+    print('R2=', model.score(X, y))
+    print('rmse=', rmse(y, y_pred))
+    print('---------------------------------------')
+
+    print('mean of residuals:', mean_resid)
+    print('std of residuals:', std_resid)
+    print('---------------------------------------')
+
+    print(len(outliers), 'outliers:')
+    print(outliers.tolist())
+
+    plt.figure(figsize=(15, 5))
+    ax_131 = plt.subplot(1, 3, 1)
+    plt.plot(y, y_pred, '.')
+    plt.plot(y.loc[outliers], y_pred.loc[outliers], 'ro')
+    plt.legend(['Accepted', 'Outlier'])
+    plt.xlabel('y')
+    plt.ylabel('y_pred')
+
+    ax_132 = plt.subplot(1, 3, 2)
+    plt.plot(y, y - y_pred, '.')
+    plt.plot(y.loc[outliers], y.loc[outliers] - y_pred.loc[outliers], 'ro')
+    plt.legend(['Accepted', 'Outlier'])
+    plt.xlabel('y')
+    plt.ylabel('y - y_pred')
+
+    ax_133 = plt.subplot(1, 3, 3)
+    z.plot.hist(bins=50, ax=ax_133)
+    z.loc[outliers].plot.hist(color='r', bins=50, ax=ax_133)
+    plt.legend(['Accepted', 'Outlier'])
+    plt.xlabel('z')
+    # plt.show()
+
+    return outliers
+
+
 def drop_outlines(df):
-    price = df['SalePrice']
-
-    Y = price.as_matrix()
-
     for column_name in hight_coreletion_with_target:
         column = df[column_name]
+        X = np.array(column, dtype=float).reshape(-1, 1)
+        outliers = find_outliers(Lasso(), X, df['SalePrice'])
 
-        plt.scatter(column, price, marker='.')
-        plt.xlabel(column_name)
-        plt.ylabel('SalePrice')
-
-        X = column.as_matrix()
-        # for i in range(len(price)):
-        #     plt.text(X[i], Y[i], i)
-        plt.show()
+        df.drop(outliers, inplace=True)
 
 
 if __name__ == "__main__":
     start_drop = ['Id']
-    outlines_drop = [524, 1299, 692, 1183, 186]
 
     df = pd.read_csv(filepath_or_buffer="resources/train.csv")
-    for n in outlines_drop:
-        df.drop(df[df['Id'] == n].index, inplace=True)
     df.drop(start_drop, 1, inplace=True)
-    # df.drop(outlines_drop, 1, inplace=True)
-
 
     drop_features_with_nan(df)
     drop_by_corr(df)
     transform_number_categorical_to_str_categorical(df)
     fill_nan(df)
     encode_labels(df)
+    drop_outlines(df)
     log_transform(df)
-    # drop_outlines(df)
-
-    # exit(0)
 
     # show_sale_price_statistic(df)
-    show_multi_plot(df)
+    # show_multi_plot(df)
     # show_heatmap(df)
     # show_zoomed_heatmap(df)
 
