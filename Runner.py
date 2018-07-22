@@ -156,7 +156,12 @@ def fill_nan(df):
 
 
 def drop_by_corr(df):
-    culumns = ['GarageArea', 'TotRmsAbvGrd', '1stFlrSF']
+    culumns = ['GarageArea', 'GarageYrBlt', 'GarageType', 'GarageCond', 'GarageFinish', 'GarageQual',
+
+               'MoSold', 'MiscVal', 'LotFrontage', 'Utilities', 'Condition2', 'FireplaceQu',
+               'Exterior2nd', 'SaleType',
+               
+               'TotRmsAbvGrd', '1stFlrSF']
     df.drop(labels=culumns, axis=1, inplace=True)
 
 
@@ -201,15 +206,13 @@ def predict(X_train, Y_trin, X_test):
     y_test.columns = ['SalePrice']
 
     y_test.to_csv('submission.csv', index_label='Id')
-    y_test.plot.hist(bins=20)
+    # y_test.plot.hist(bins=20)
 
 
 def check_score(X, Y):
     lasso_model = Lasso(alpha=0.0005, random_state=seed)
     score = rmsle_cv(lasso_model, X, Y)
     print("Lasso score: {:.4f} ({:.4f})".format(score.mean(), score.std()))
-
-    return lasso_model
 
     # linear_model = LinearRegression()
     # score = rmsle_cv(linear_model, X, Y)
@@ -306,13 +309,13 @@ if __name__ == "__main__":
     x_test = df_all.iloc[id_train:, :]
     drop_outlines(x_train)
 
+    # show_sale_price_statistic(x_train)
+    # show_multi_plot(x_train)
+    # show_heatmap(x_train)
+    # show_zoomed_heatmap(x_train)
+
     id_train = len(x_train)
     df_all = pd.concat([x_train, x_test], sort=False)
-
-    # show_sale_price_statistic(df)
-    # show_multi_plot(df)
-    # show_heatmap(df)
-    # show_zoomed_heatmap(df)
 
     y_train = df_all['SalePrice']
     df_all.drop(['SalePrice'], 1, inplace=True)
