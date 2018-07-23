@@ -232,8 +232,9 @@ def drop_by_corr(df):
                'Heating', 'HeatingQC', 'KitchenQual', 'Functional', 'FireplaceQu', 'GarageType', 'GarageFinish',
                'PavedDrive', 'SaleType', 'SaleCondition']
 
-    df.drop(labels=culumns, axis=1, inplace=True)
-
+    # df.drop(labels=culumns, axis=1, inplace=True)
+    # 0.0985(0.0045)
+    # 0.0976(0.0040)
     pass
 
 
@@ -465,7 +466,7 @@ if __name__ == "__main__":
 
     # show_sale_price_statistic(x_train)
     # show_multi_plot(x_train)
-    show_heatmap(x_train)
+    # show_heatmap(x_train)
     # show_zoomed_heatmap(x_train)
 
     id_train = len(x_train)
